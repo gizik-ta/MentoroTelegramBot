@@ -1,0 +1,22 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite runtime data
+app.db
+app.db-wal
+app.db-shm
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Editor and local agent settings
+.vscode/
+
+# Runtime logs
+*.log
+app/common/utils/user_actions.jsonl

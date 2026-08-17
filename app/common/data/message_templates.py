@@ -1,0 +1,103 @@
+DEFAULT_MESSAGE_TEMPLATES = (
+    (
+        "error.validation_number",
+        "error",
+        "Нужно ввести число. Попробуй снова. Пример: {example}",
+        ("example",),
+        "Ошибка проверки числового поля.",
+    ),
+    (
+        "error.not_found",
+        "error",
+        "{entity} не найдено.",
+        ("entity",),
+        "Безопасная ошибка для отсутствующей сущности.",
+    ),
+    (
+        "error.access_denied",
+        "error",
+        "Команда доступна только администраторам.",
+        (),
+        "Отказ в доступе к административной функции.",
+    ),
+    (
+        "error.internal",
+        "error",
+        "Не удалось выполнить действие. Попробуй позже.",
+        (),
+        "Нераскрывающая внутренняя ошибка.",
+    ),
+    (
+        "notification.publication_expiring",
+        "notification",
+        (
+            "Подходит к концу оплаченный срок публикации. "
+            "Ты можешь продлить его в разделе Мои объявления"
+        ),
+        ("ad_id", "publishing_end"),
+        "Напоминание в день окончания публикации.",
+    ),
+    (
+        "notification.ad_approved",
+        "notification",
+        "Ваше объявление опубликовано.",
+        ("ad_id",),
+        "Уведомление после одобрения объявления.",
+    ),
+    (
+        "notification.ad_rejected",
+        "notification",
+        "Ваше объявление отклонено. Причина: {reason}",
+        ("ad_id", "reason"),
+        "Уведомление после отклонения объявления.",
+    ),
+    (
+        "notification.payment_received",
+        "notification",
+        "Оплата {amount} ₽ получена. Объявление №{ad_id} обновлено.",
+        ("amount", "ad_id"),
+        "Подтверждение оплаты.",
+    ),
+    (
+        "ad.published_until",
+        "ad",
+        "ОПУБЛИКОВАНО ДО {publishing_end}",
+        ("publishing_end",),
+        "Статус объявления в разделе Мои объявления.",
+    ),
+    (
+        "ad.search_position",
+        "ad",
+        "{current}/{total}",
+        ("current", "total"),
+        "Позиция карточки в поисковой выдаче.",
+    ),
+    (
+        "ad.statistics",
+        "ad",
+        "Просмотры: {views}; сохранения: {likes}",
+        ("views", "likes"),
+        "Краткая статистика объявления.",
+    ),
+    (
+        "ad.contact",
+        "ad",
+        "Свяжись с репетитором: @{username}",
+        ("username",),
+        "Контактная информация объявления.",
+    ),
+    (
+        "admin.handler_warning",
+        "admin",
+        "User ID: {user_id}; Handler: {handler}; Time: {time_ms}; Status: {status}",
+        ("user_id", "handler", "time_ms", "status", "error"),
+        "Предупреждение о медленном или ошибочном обработчике.",
+    ),
+    (
+        "system.afk_reset",
+        "system",
+        "Сессия пользователя {user_id} возвращена в главное меню после {hours} ч.",
+        ("user_id", "hours"),
+        "Системное событие очистки неактивной сессии.",
+    ),
+)
