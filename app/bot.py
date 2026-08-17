@@ -47,6 +47,7 @@ async def main():
         bot_token=config.bot_token,
         host=config.payment_redirect_host,
         port=config.payment_redirect_port,
+        yoomoney_secret=config.secret_code,
     )
 
     dp = Dispatcher(storage=storage, events_isolation=isolation)

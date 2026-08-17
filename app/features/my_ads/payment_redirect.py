@@ -5,6 +5,7 @@ from collections.abc import Callable
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from features.payments import register_yoomoney_webhook
 from flask import Flask, abort, redirect
 from werkzeug.serving import BaseWSGIServer, make_server
 
@@ -39,8 +40,14 @@ def create_payment_redirect_app(
     db_path: str,
     bot_token: str,
     telegram_delete: TelegramDelete | None = None,
+    yoomoney_secret: str = "",
 ) -> Flask:
     app = Flask(__name__)
+    register_yoomoney_webhook(
+        app,
+        db_path=db_path,
+        secret=yoomoney_secret,
+    )
     delete_message = telegram_delete or (
         lambda chat_id, message_id: _telegram_delete(
             bot_token,
@@ -96,8 +103,13 @@ class PaymentRedirectServer:
         bot_token: str,
         host: str,
         port: int,
+        yoomoney_secret: str = "",
     ) -> None:
-        self.app = create_payment_redirect_app(db_path, bot_token)
+        self.app = create_payment_redirect_app(
+            db_path,
+            bot_token,
+            yoomoney_secret=yoomoney_secret,
+        )
         self.host = host
         self.port = port
         self._server: BaseWSGIServer | None = None
@@ -109,7 +121,7 @@ class PaymentRedirectServer:
         self._server = make_server(self.host, self.port, self.app, threaded=True)
         self._thread = threading.Thread(
             target=self._server.serve_forever,
-            name="pomogator-payment-redirect",
+            name="mentoro-payment-api",
             daemon=True,
         )
         self._thread.start()

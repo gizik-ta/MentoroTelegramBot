@@ -94,6 +94,10 @@ async def init_db(db: DatabaseConnection) -> None:
                 amount_rub INTEGER NOT NULL DEFAULT 200,
                 paid_at TEXT,
                 order_kind TEXT NOT NULL DEFAULT 'initial',
+                provider_operation_id TEXT,
+                gross_amount TEXT,
+                net_amount TEXT,
+                notification_type TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
             )
             """
@@ -112,6 +116,25 @@ async def init_db(db: DatabaseConnection) -> None:
             await cursor.execute(
                 "ALTER TABLE transactions "
                 "ADD COLUMN order_kind TEXT NOT NULL DEFAULT 'initial'"
+            )
+        if "provider_operation_id" not in transaction_columns:
+            await cursor.execute(
+                "ALTER TABLE transactions ADD COLUMN provider_operation_id TEXT"
+            )
+        await cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "idx_transactions_provider_operation_id "
+            "ON transactions(provider_operation_id)"
+        )
+        if "gross_amount" not in transaction_columns:
+            await cursor.execute(
+                "ALTER TABLE transactions ADD COLUMN gross_amount TEXT"
+            )
+        if "net_amount" not in transaction_columns:
+            await cursor.execute("ALTER TABLE transactions ADD COLUMN net_amount TEXT")
+        if "notification_type" not in transaction_columns:
+            await cursor.execute(
+                "ALTER TABLE transactions ADD COLUMN notification_type TEXT"
             )
         await cursor.execute(
             """
@@ -147,6 +170,27 @@ async def init_db(db: DatabaseConnection) -> None:
                 FOREIGN KEY(transaction_uuid)
                     REFERENCES transactions(uuid) ON DELETE CASCADE,
                 FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        await cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS yoomoney_callbacks (
+                operation_id TEXT PRIMARY KEY,
+                transaction_uuid TEXT,
+                payload_digest TEXT NOT NULL,
+                notification_type TEXT NOT NULL,
+                gross_amount TEXT NOT NULL,
+                net_amount TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (
+                    status IN ('accepted', 'ignored', 'rejected', 'anomaly')
+                ),
+                result_code TEXT NOT NULL,
+                received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(transaction_uuid)
+                    REFERENCES transactions(uuid) ON DELETE SET NULL
             )
             """
         )
