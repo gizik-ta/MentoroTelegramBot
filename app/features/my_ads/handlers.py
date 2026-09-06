@@ -50,6 +50,12 @@ async def _send_payment_message(
         description=description,
         order_kind="renewal" if is_renewal else "initial",
     )
+    await MyAdsServices.attach_ad_message(
+        payment.redirect_token,
+        callback.from_user.id,
+        callback.message.chat.id,
+        callback.message.message_id,
+    )
     text, keyboard = MyAdsRendering.payment(
         payment.redirect_url,
         is_renewal=is_renewal,

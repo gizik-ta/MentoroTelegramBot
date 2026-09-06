@@ -1,11 +1,14 @@
 import hashlib
 import hmac
 import sqlite3
+from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote, urlencode
 
 from flask import Flask, request
+
+from .texts import PaymentTexts
 
 ALLOWED_NOTIFICATION_TYPES = {"p2p-incoming", "card-incoming"}
 FALSE_VALUES = {"false", "0", ""}
@@ -186,6 +189,7 @@ def register_yoomoney_webhook(
     *,
     db_path: str,
     secret: str,
+    on_payment_accepted: Callable[[int, int], None] | None = None,
 ) -> None:
     @app.post("/yoomoney_webhook")
     def yoomoney_webhook():
@@ -205,6 +209,7 @@ def register_yoomoney_webhook(
         if not operation_id:
             return "INVALID NOTIFICATION", 400
 
+        accepted_payment: tuple[int, int] | None = None
         with sqlite3.connect(db_path, timeout=20) as connection:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
@@ -277,6 +282,23 @@ def register_yoomoney_webhook(
                 )
                 if activated:
                     connection.execute("RELEASE SAVEPOINT ad_activation")
+                    accepted_payment = (
+                        int(transaction["user_id"]),
+                        int(transaction["ad_id"]),
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO notifications (user_id, notification_text)
+                        VALUES (?, ?)
+                        """,
+                        (
+                            transaction["user_id"],
+                            PaymentTexts.RECEIVED_NOTIFICATION.format(
+                                amount=transaction["amount_rub"],
+                                ad_id=transaction["ad_id"],
+                            ),
+                        ),
+                    )
                 else:
                     connection.execute("ROLLBACK TO SAVEPOINT ad_activation")
                     connection.execute("RELEASE SAVEPOINT ad_activation")
@@ -296,5 +318,12 @@ def register_yoomoney_webhook(
                 result_code=result_code,
             )
             connection.commit()
+
+        if accepted_payment is not None and on_payment_accepted is not None:
+            try:
+                on_payment_accepted(*accepted_payment)
+            except (OSError, TypeError, ValueError, sqlite3.Error):
+                # YooMoney must still receive HTTP 200 after the durable DB update.
+                pass
 
         return "OK", 200

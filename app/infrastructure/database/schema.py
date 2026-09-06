@@ -165,6 +165,8 @@ async def init_db(db: DatabaseConnection) -> None:
                 destination_url TEXT NOT NULL,
                 chat_id INTEGER,
                 message_id INTEGER,
+                ad_chat_id INTEGER,
+                ad_message_id INTEGER,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 opened_at TEXT,
                 FOREIGN KEY(transaction_uuid)
@@ -173,6 +175,17 @@ async def init_db(db: DatabaseConnection) -> None:
             )
             """
         )
+
+        await cursor.execute("PRAGMA table_info(payment_redirects)")
+        payment_redirect_columns = {row[1] for row in await cursor.fetchall()}
+        if "ad_chat_id" not in payment_redirect_columns:
+            await cursor.execute(
+                "ALTER TABLE payment_redirects ADD COLUMN ad_chat_id INTEGER"
+            )
+        if "ad_message_id" not in payment_redirect_columns:
+            await cursor.execute(
+                "ALTER TABLE payment_redirects ADD COLUMN ad_message_id INTEGER"
+            )
 
         await cursor.execute(
             """

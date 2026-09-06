@@ -47,6 +47,12 @@ def test_payment_redirect_deletes_message_and_opens_yoomoney(tmp_path):
             20,
             30,
         )
+        assert await redirect_repo.attach_ad_message(
+            "redirect-token",
+            10,
+            20,
+            40,
+        )
         await db.disconnect()
 
     asyncio.run(seed())

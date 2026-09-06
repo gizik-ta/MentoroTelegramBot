@@ -50,16 +50,34 @@ def _seed_payment_database(db_path) -> None:
             )
             """
         )
+        await database.conn.execute(
+            """
+            INSERT INTO payment_redirects (
+                token, transaction_uuid, user_id, destination_url,
+                ad_chat_id, ad_message_id
+            ) VALUES (
+                'redirect-token', 'order-1', 10,
+                'https://yoomoney.ru/quickpay/confirm?label=order-1',
+                100, 200
+            )
+            """
+        )
         await database.conn.commit()
         await database.disconnect()
 
     asyncio.run(seed())
 
 
-def _create_client(db_path):
+def _create_client(db_path, edits=None):
+    edits = edits if edits is not None else []
     app = create_payment_redirect_app(
         str(db_path),
         "telegram-test-token",
+        telegram_delete=lambda *_: True,
+        telegram_edit=lambda chat_id, message_id, text, keyboard: edits.append(
+            (chat_id, message_id, text, keyboard)
+        )
+        or True,
         yoomoney_secret=SECRET,
     )
     return app.test_client()
@@ -68,8 +86,9 @@ def _create_client(db_path):
 def test_valid_callback_marks_transaction_paid_and_buys_ad(tmp_path):
     db_path = tmp_path / "valid-payment.db"
     _seed_payment_database(db_path)
+    edits = []
 
-    response = _create_client(db_path).post(
+    response = _create_client(db_path, edits).post(
         "/yoomoney_webhook",
         data=_signed_notification(),
     )
@@ -103,6 +122,9 @@ def test_valid_callback_marks_transaction_paid_and_buys_ad(tmp_path):
                 """
             ).fetchone()
         )
+        notification = connection.execute(
+            "SELECT notification_text FROM notifications WHERE user_id = 10"
+        ).fetchone()[0]
 
     assert transaction == {
         "status": "paid",
@@ -118,6 +140,13 @@ def test_valid_callback_marks_transaction_paid_and_buys_ad(tmp_path):
         "state": "on_check",
     }
     assert callback == {"status": "accepted", "result_code": "accepted"}
+    assert notification == "Оплата 200 ₽ получена. Объявление №1 обновлено."
+    assert len(edits) == 1
+    chat_id, message_id, text, keyboard = edits[0]
+    assert (chat_id, message_id) == (100, 200)
+    assert "НА ПРОВЕРКЕ" in text
+    buttons = [button for row in keyboard["inline_keyboard"] for button in row]
+    assert all(button["text"] != "ОПЛАТИТ ОБЪЯВЛЕНИЕ" for button in buttons)
 
 
 def test_callback_replay_and_second_operation_do_not_extend_ad_twice(tmp_path):
@@ -160,6 +189,37 @@ def test_callback_replay_and_second_operation_do_not_extend_ad_twice(tmp_path):
             "already_paid_second_operation",
         ),
     ]
+
+
+def test_renewal_callback_refreshes_ad_with_new_end_date_and_renew_button(tmp_path):
+    db_path = tmp_path / "renewal-payment.db"
+    _seed_payment_database(db_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE ads
+            SET state = 'published', is_bought = TRUE,
+                publishing_end = '2026-08-31'
+            WHERE ad_id = 1
+            """
+        )
+        connection.execute(
+            "UPDATE transactions SET order_kind = 'renewal' WHERE uuid = 'order-1'"
+        )
+        connection.commit()
+    edits = []
+
+    response = _create_client(db_path, edits).post(
+        "/yoomoney_webhook",
+        data=_signed_notification(),
+    )
+
+    assert response.status_code == 200
+    assert len(edits) == 1
+    _, _, text, keyboard = edits[0]
+    assert "ОПУБЛИКОВАНО ДО 30.09.2026" in text
+    buttons = [button for row in keyboard["inline_keyboard"] for button in row]
+    assert any(button["text"] == "Продлить публикацию" for button in buttons)
 
 
 def test_invalid_signature_and_amount_do_not_mutate_business_state(tmp_path):

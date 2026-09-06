@@ -39,3 +39,21 @@ class PaymentRedirectRepository(BaseRepository):
         )
         await self.db.conn.commit()
         return cursor.rowcount == 1
+
+    async def attach_ad_message(
+        self,
+        token: str,
+        user_id: int,
+        chat_id: int,
+        message_id: int,
+    ) -> bool:
+        cursor = await self.db.conn.execute(
+            """
+            UPDATE payment_redirects
+            SET ad_chat_id = ?, ad_message_id = ?
+            WHERE token = ? AND user_id = ?
+            """,
+            (chat_id, message_id, token, user_id),
+        )
+        await self.db.conn.commit()
+        return cursor.rowcount == 1

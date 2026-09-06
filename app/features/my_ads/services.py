@@ -89,6 +89,20 @@ class MyAdsServices:
         )
 
     @staticmethod
+    async def attach_ad_message(
+        token: str,
+        user_id: int,
+        chat_id: int,
+        message_id: int,
+    ) -> bool:
+        return await payment_redirect_repo.attach_ad_message(
+            token,
+            user_id,
+            chat_id,
+            message_id,
+        )
+
+    @staticmethod
     def generate_yoomoney_link(
         payment_type: str,
         order_id: str,
