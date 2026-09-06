@@ -2,7 +2,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Callable
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from features.payments import register_yoomoney_webhook
@@ -30,10 +30,30 @@ def _telegram_delete(bot_token: str, chat_id: int, message_id: int) -> bool:
 
 def _is_yoomoney_url(url: str) -> bool:
     parsed = urlparse(url)
-    return parsed.scheme == "https" and parsed.hostname in {
-        "yoomoney.ru",
-        "www.yoomoney.ru",
-    }
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname in {"yoomoney.ru", "www.yoomoney.ru"}
+        and parsed.port in {None, 443}
+        and parsed.path in {"/quickpay/confirm", "/quickpay/confirm.xml"}
+    )
+
+
+def _normalize_yoomoney_url(url: str) -> str | None:
+    if not _is_yoomoney_url(url):
+        return None
+
+    parsed = urlparse(url)
+    params = parse_qsl(parsed.query, keep_blank_values=True)
+    if not any(name == "paymentType" for name, _ in params):
+        params.append(("paymentType", "AC"))
+
+    return urlunparse(
+        parsed._replace(
+            path="/quickpay/confirm",
+            query=urlencode(params),
+            fragment="",
+        )
+    )
 
 
 def create_payment_redirect_app(
@@ -71,8 +91,8 @@ def create_payment_redirect_app(
             if row is None:
                 abort(404)
 
-            destination_url = str(row["destination_url"])
-            if not _is_yoomoney_url(destination_url):
+            destination_url = _normalize_yoomoney_url(str(row["destination_url"]))
+            if destination_url is None:
                 abort(400)
 
             if (

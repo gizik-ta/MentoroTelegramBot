@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+from urllib.parse import parse_qs, urlparse
 
 from features.my_ads.payment_redirect import (
     PaymentRedirectServer,
@@ -59,7 +60,12 @@ def test_payment_redirect_deletes_message_and_opens_yoomoney(tmp_path):
     response = app.test_client().get("/payment/open/redirect-token")
 
     assert response.status_code == 302
-    assert response.location.startswith("https://yoomoney.ru/quickpay/confirm.xml")
+    destination = urlparse(response.location)
+    assert destination.path == "/quickpay/confirm"
+    assert parse_qs(destination.query) == {
+        "label": ["order-id"],
+        "paymentType": ["AC"],
+    }
     assert deleted == [(20, 30)]
     with sqlite3.connect(db_path) as connection:
         opened_at = connection.execute(
@@ -82,6 +88,37 @@ def test_payment_redirect_rejects_unknown_token(tmp_path):
     app = create_payment_redirect_app(str(db_path), "test-token", lambda *_: True)
 
     assert app.test_client().get("/payment/open/unknown").status_code == 404
+
+
+def test_payment_redirect_rejects_insecure_yoomoney_destination(tmp_path):
+    db_path = tmp_path / "insecure-payment-redirect.db"
+
+    async def seed():
+        db = DatabaseConnection(str(db_path))
+        await db.connect()
+        await init_db(db)
+        await db.conn.execute("INSERT INTO users (user_id) VALUES (10)")
+        await db.conn.execute("INSERT INTO ads (user_id) VALUES (10)")
+        await db.conn.commit()
+        await TransactionRepository(db).make_transaction(
+            "order-id",
+            10,
+            1,
+            1,
+            "2026-08-17T10:00:00+00:00",
+        )
+        await PaymentRedirectRepository(db).create(
+            "redirect-token",
+            "order-id",
+            10,
+            "http://yoomoney.ru/quickpay/confirm?label=order-id",
+        )
+        await db.disconnect()
+
+    asyncio.run(seed())
+    app = create_payment_redirect_app(str(db_path), "test-token", lambda *_: True)
+
+    assert app.test_client().get("/payment/open/redirect-token").status_code == 400
 
 
 def test_payment_redirect_server_starts_and_stops(tmp_path):
